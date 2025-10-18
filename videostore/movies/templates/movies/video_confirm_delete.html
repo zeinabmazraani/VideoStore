@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete Video</title>
+    <style>
+        body { background-color: #141414; color: #fff; font-family: Arial; }
+        h1 { color: #e50914; }
+        button {
+            background-color: #e50914;
+            color: #fff;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+        }
+        a { color: #e50914; margin-left: 15px; }
+    </style>
+</head>
+<body>
+    <h1>Confirm Delete</h1>
+    <p>Are you sure you want to delete <b>{{ video.MovieTitle }}</b>?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Yes, Delete</button>
+    </form>
+    <a href="{% url 'video_list' %}">Cancel</a>
+</body>
+</html>
