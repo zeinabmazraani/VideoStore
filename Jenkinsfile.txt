@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     triggers {
-        // Check for Git changes every 2 minutes
+        // Check GitHub for new commits every 2 minutes
         pollSCM('H/2 * * * *')
     }
 
@@ -22,46 +22,40 @@ pipeline {
 
         stage('Build in Minikube Docker') {
             steps {
-                echo '=== Building Docker image inside Minikube ==='
                 script {
-                    // Dynamically generate an image tag based on the build number
-                    def IMAGE_TAG = "${BUILD_NUMBER}"
+                    env.IMAGE_TAG = "${BUILD_NUMBER}"  // unique tag per build
+                    echo "=== Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG} ==="
 
                     bat """
                     @echo off
-                    REM === Point Docker to Minikube ===
                     call minikube docker-env --shell=cmd > docker_env.bat
                     call docker_env.bat
-
-                    echo Building image: ${IMAGE_NAME}:${IMAGE_TAG}
+                    echo Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                     """
-                    
-                    // Save tag to environment for next stage
-                    env.IMAGE_TAG = IMAGE_TAG
                 }
             }
         }
 
         stage('Deploy to Minikube') {
             steps {
-                echo '=== Deploying new version to Kubernetes ==='
+                echo "=== Deploying image ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes ==="
+
                 bat """
                 @echo off
                 call minikube docker-env --shell=cmd > docker_env.bat
                 call docker_env.bat
 
-                echo Updating deployment to use image: ${IMAGE_NAME}:${IMAGE_TAG}
-
-                REM === Update or create deployment ===
-                kubectl set image deployment/django-deployment django-container=${IMAGE_NAME}:${IMAGE_TAG} --record 2>nul || (
-                    echo Deployment not found, applying fresh YAML...
+                REM Force deployment to use the newly built image
+                kubectl set image deployment/django-deployment django-container=${IMAGE_NAME}:${IMAGE_TAG} --record || (
+                    echo Deployment not found, creating...
                     kubectl apply -f deployment.yaml
                 )
 
                 kubectl apply -f service.yaml
 
-                echo Waiting for rollout to finish...
+                REM Wait for rollout completion
+                kubectl rollout restart deployment/django-deployment
                 kubectl rollout status deployment/django-deployment
                 """
             }
@@ -70,10 +64,10 @@ pipeline {
 
     post {
         success {
-            echo " Deployment completed successfully. Running version: ${IMAGE_TAG}"
+            echo " Deployment succeeded — running ${IMAGE_NAME}:${IMAGE_TAG}"
         }
         failure {
-            echo " Deployment failed — check console output for details."
+            echo " Deployment failed — check console output."
         }
     }
 }
