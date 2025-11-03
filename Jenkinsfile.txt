@@ -1,19 +1,15 @@
 pipeline {
     agent any
-
-    triggers {
-        pollSCM('H/2 * * * *')
-    }
+    triggers { pollSCM('H/2 * * * *') }
 
     environment {
         IMAGE_NAME = "videostore"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE_TAG = "build-${BUILD_NUMBER}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo '=== Checking out latest code from GitHub ==='
                 cleanWs()
                 git branch: 'main', url: 'https://github.com/zeinabmazraani/VideoStore'
             }
@@ -21,14 +17,12 @@ pipeline {
 
         stage('Build in Minikube Docker') {
             steps {
-                echo '=== Building Docker image inside Minikube ==='
                 bat '''
                 @echo off
                 call minikube docker-env --shell=cmd > docker_env.bat
                 call docker_env.bat
-                timeout /t 3 /nobreak >nul
+                timeout /t 2 /nobreak >nul
 
-                echo Building image: %IMAGE_NAME%:%IMAGE_TAG%
                 docker build -t %IMAGE_NAME%:%IMAGE_TAG% . || exit /b 1
                 '''
             }
@@ -36,15 +30,11 @@ pipeline {
 
         stage('Deploy to Minikube') {
             steps {
-                echo '=== Deploying new version to Kubernetes ==='
                 bat '''
                 @echo off
-                echo Updating deployment to use %IMAGE_NAME%:%IMAGE_TAG%
                 kubectl set image deployment/django-deployment django-container=%IMAGE_NAME%:%IMAGE_TAG% --record || (
-                    echo Deployment not found, creating new one...
                     kubectl apply -f deployment.yaml || exit /b 1
                 )
-                kubectl apply -f service.yaml || exit /b 1
                 kubectl rollout status deployment/django-deployment || exit /b 1
                 '''
             }
@@ -52,11 +42,7 @@ pipeline {
     }
 
     post {
-        success {
-            echo 'Deployment completed successfully.'
-        }
-        failure {
-            echo 'Deployment failed — check console output.'
-        }
+        success { echo 'Deployment completed successfully.' }
+        failure { echo 'Deployment failed — check console output.' }
     }
 }
