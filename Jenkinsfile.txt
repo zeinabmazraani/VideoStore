@@ -7,6 +7,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 cleanWs()
@@ -34,7 +35,10 @@ pipeline {
                 kubectl apply -f deployment.yaml
                 kubectl apply -f service.yaml
 
-                REM === Wait for deployment to roll out ===
+                REM === Force restart to load new image ===
+                kubectl rollout restart deployment/django-deployment
+
+                REM === Wait for rollout to complete ===
                 kubectl rollout status deployment/django-deployment
                 '''
             }
