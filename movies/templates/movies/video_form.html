@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Form</title>
+    <style>
+        body {
+            background-color: #141414;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        h1 { color: #e50914; }
+        form { margin: 20px; }
+        button {
+            background-color: #e50914;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #b20710; }
+        a { color: #e50914; }
+    </style>
+</head>
+<body>
+    <h1>Video Form</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+    <a href="{% url 'video_list' %}">⬅️ Back</a>
+</body>
+</html>

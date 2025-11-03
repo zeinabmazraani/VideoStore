@@ -1,0 +1,15 @@
+[
+{
+  "model": "movies.video",
+  "pk": 1,
+  "fields": {
+    "MovieTitle": "Now You See Me",
+    "Actor1Name": "Mark Ruffalo",
+    "Actor2Name": "Jesse Eisenberg",
+    "DirectorName": "Louis Letterier",
+    "MovieGenre": "Heist Thriller",
+    "ReleaseYear": 2013,
+    "Description": "An elite FBI squad is caught in an intense game of cat and mouse against four of the world's greatest illusionists."
+  }
+}
+]

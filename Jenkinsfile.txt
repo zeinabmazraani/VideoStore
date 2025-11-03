@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    triggers {
+        // Poll GitHub every 2 minutes for new commits
+        pollSCM('H/2 * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                git branch: 'main', url: 'https://github.com/zeinabmazraani/VideoStore'
+            }
+        }
+
+        stage('Build in Minikube Docker') {
+            steps {
+                bat '''
+                REM === Point Docker to Minikube ===
+                call minikube docker-env --shell=cmd > docker_env.bat
+                call docker_env.bat
+
+                REM === Build Docker image inside Minikube ===
+                docker build -t videostore:latest .
+                '''
+            }
+        }
+
+        stage('Deploy to Minikube') {
+            steps {
+                bat '''
+                REM === Apply deployment and service YAML ===
+                kubectl apply -f deployment.yaml
+                kubectl apply -f service.yaml
+
+                REM === Wait for deployment to roll out ===
+                kubectl rollout status deployment/django-deployment
+                '''
+            }
+        }
+    }
+}
