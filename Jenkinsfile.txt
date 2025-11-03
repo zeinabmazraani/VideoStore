@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     triggers {
-        // Check for new GitHub commits every 2 minutes
         pollSCM('H/2 * * * *')
     }
 
@@ -12,10 +11,9 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                echo '===  Checking out latest code from GitHub ==='
+                echo '=== Checking out latest code from GitHub ==='
                 cleanWs()
                 git branch: 'main', url: 'https://github.com/zeinabmazraani/VideoStore'
             }
@@ -23,14 +21,13 @@ pipeline {
 
         stage('Build in Minikube Docker') {
             steps {
-                echo '===  Building Docker image inside Minikube ==='
+                echo '=== Building Docker image inside Minikube ==='
                 bat '''
                 @echo off
-                REM === Connect Docker to Minikube ===
                 call minikube docker-env --shell=cmd > docker_env.bat
                 call docker_env.bat
+                timeout /t 3 /nobreak >nul
 
-                REM === Build image with unique tag ===
                 echo Building image: %IMAGE_NAME%:%IMAGE_TAG%
                 docker build -t %IMAGE_NAME%:%IMAGE_TAG% . || exit /b 1
                 '''
@@ -39,15 +36,15 @@ pipeline {
 
         stage('Deploy to Minikube') {
             steps {
-                echo '===  Deploying new image to Kubernetes ==='
+                echo '=== Deploying new version to Kubernetes ==='
                 bat '''
                 @echo off
                 echo Updating deployment to use %IMAGE_NAME%:%IMAGE_TAG%
-
-                REM === Update image in running deployment ===
-                kubectl set image deployment/django-deployment django-container=%IMAGE_NAME%:%IMAGE_TAG% --record || exit /b 1
-
-                REM === Wait for new pod rollout ===
+                kubectl set image deployment/django-deployment django-container=%IMAGE_NAME%:%IMAGE_TAG% --record || (
+                    echo Deployment not found, creating new one...
+                    kubectl apply -f deployment.yaml || exit /b 1
+                )
+                kubectl apply -f service.yaml || exit /b 1
                 kubectl rollout status deployment/django-deployment || exit /b 1
                 '''
             }
@@ -56,10 +53,10 @@ pipeline {
 
     post {
         success {
-            echo ' Deployment completed successfully! Your web app now runs the latest version.'
+            echo 'Deployment completed successfully.'
         }
         failure {
-            echo ' Deployment failed — check console output for details.'
+            echo 'Deployment failed — check console output.'
         }
     }
 }
