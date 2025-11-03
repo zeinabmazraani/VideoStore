@@ -4,9 +4,9 @@ metadata:
   name: django-service
 spec:
   selector:
-    app: django       # must match the label on your pod
+    app: django-app
   ports:
     - protocol: TCP
-      port: 8000      # external port for minikube
+      port: 80
       targetPort: 8000
   type: NodePort
