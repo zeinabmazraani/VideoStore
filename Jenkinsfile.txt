@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     triggers {
+        // Check for Git changes every 2 minutes
         pollSCM('H/2 * * * *')
     }
 
     environment {
         IMAGE_NAME = "videostore"
-        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 echo '=== Checking out latest code from GitHub ==='
@@ -22,41 +23,57 @@ pipeline {
         stage('Build in Minikube Docker') {
             steps {
                 echo '=== Building Docker image inside Minikube ==='
-                bat '''
-                @echo off
-                call minikube docker-env --shell=cmd > docker_env.bat
-                call docker_env.bat
-                timeout /t 3 /nobreak >nul
+                script {
+                    // Dynamically generate an image tag based on the build number
+                    def IMAGE_TAG = "${BUILD_NUMBER}"
 
-                echo Building image: %IMAGE_NAME%:%IMAGE_TAG%
-                docker build -t %IMAGE_NAME%:%IMAGE_TAG% . || exit /b 1
-                '''
+                    bat """
+                    @echo off
+                    REM === Point Docker to Minikube ===
+                    call minikube docker-env --shell=cmd > docker_env.bat
+                    call docker_env.bat
+
+                    echo Building image: ${IMAGE_NAME}:${IMAGE_TAG}
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                    """
+                    
+                    // Save tag to environment for next stage
+                    env.IMAGE_TAG = IMAGE_TAG
+                }
             }
         }
 
         stage('Deploy to Minikube') {
             steps {
                 echo '=== Deploying new version to Kubernetes ==='
-                bat '''
+                bat """
                 @echo off
-                echo Updating deployment to use %IMAGE_NAME%:%IMAGE_TAG%
-                kubectl set image deployment/django-deployment django-container=%IMAGE_NAME%:%IMAGE_TAG% --record || (
-                    echo Deployment not found, creating new one...
-                    kubectl apply -f deployment.yaml || exit /b 1
+                call minikube docker-env --shell=cmd > docker_env.bat
+                call docker_env.bat
+
+                echo Updating deployment to use image: ${IMAGE_NAME}:${IMAGE_TAG}
+
+                REM === Update or create deployment ===
+                kubectl set image deployment/django-deployment django-container=${IMAGE_NAME}:${IMAGE_TAG} --record 2>nul || (
+                    echo Deployment not found, applying fresh YAML...
+                    kubectl apply -f deployment.yaml
                 )
-                kubectl apply -f service.yaml || exit /b 1
-                kubectl rollout status deployment/django-deployment || exit /b 1
-                '''
+
+                kubectl apply -f service.yaml
+
+                echo Waiting for rollout to finish...
+                kubectl rollout status deployment/django-deployment
+                """
             }
         }
     }
 
     post {
         success {
-            echo 'Deployment completed successfully.'
+            echo " Deployment completed successfully. Running version: ${IMAGE_TAG}"
         }
         failure {
-            echo 'Deployment failed — check console output.'
+            echo " Deployment failed — check console output for details."
         }
     }
 }
