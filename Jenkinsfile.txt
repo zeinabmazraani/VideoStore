@@ -1,8 +1,8 @@
 pipeline {
     agent any
 
+    // Automatically check for changes every 2 minutes
     triggers {
-        // Poll GitHub every 2 minutes for new commits
         pollSCM('H/2 * * * *')
     }
 
@@ -10,6 +10,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
+                echo '=== Checking out latest code from GitHub ==='
                 cleanWs()
                 git branch: 'main', url: 'https://github.com/zeinabmazraani/VideoStore'
             }
@@ -17,31 +18,47 @@ pipeline {
 
         stage('Build in Minikube Docker') {
             steps {
+                echo '=== Building Docker image inside Minikube ==='
                 bat '''
+                @echo off
                 REM === Point Docker to Minikube ===
                 call minikube docker-env --shell=cmd > docker_env.bat
                 call docker_env.bat
 
-                REM === Build Docker image inside Minikube ===
-                docker build -t videostore:latest .
+                REM === Wait 3 seconds for Minikube environment to load ===
+                timeout /t 3 /nobreak >nul
+
+                REM === Build Docker image ===
+                docker build -t videostore:latest . || exit /b 1
                 '''
             }
         }
 
         stage('Deploy to Minikube') {
             steps {
+                echo '=== Deploying application to Minikube cluster ==='
                 bat '''
+                @echo off
                 REM === Apply deployment and service YAML ===
-                kubectl apply -f deployment.yaml
-                kubectl apply -f service.yaml
+                kubectl apply -f deployment.yaml || exit /b 1
+                kubectl apply -f service.yaml || exit /b 1
 
-                REM === Force restart to load new image ===
-                kubectl rollout restart deployment/django-deployment
+                REM === Force restart deployment to pull new image ===
+                kubectl rollout restart deployment/django-deployment || exit /b 1
 
-                REM === Wait for rollout to complete ===
-                kubectl rollout status deployment/django-deployment
+                REM === Wait for deployment rollout to finish ===
+                kubectl rollout status deployment/django-deployment || exit /b 1
                 '''
             }
+        }
+    }
+
+    post {
+        success {
+            echo ' Deployment completed successfully!'
+        }
+        failure {
+            echo ' Deployment failed — check console output for details.'
         }
     }
 }
